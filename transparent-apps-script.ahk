@@ -1,82 +1,114 @@
-﻿; Initialize the auto-check flag and start the timer
+; Initialize the auto-check flag and start the timer
 isAutoCheckEnabled := true
-currentTransparency := 220  ; Store current transparency level
+transparencyLevels := Map()  ; Store transparency level per app
+
 SetTimer CheckApps, 1000  ; Check every 1 second
 
 ; Function to check and make apps transparent
 CheckApps()
 {
-    global isAutoCheckEnabled, currentTransparency
+    global isAutoCheckEnabled, transparencyLevels
     
     ; Only run if auto-check is enabled
     if (isAutoCheckEnabled)
     {
-        ; Check if Brave is open and make it transparent
-        if WinExist("ahk_exe brave.exe")
-            WinSetTransparent(currentTransparency, "ahk_exe brave.exe")
-        
-        ; Check if VLC is open and make it transparent
-        if WinExist("ahk_exe vlc.exe")
-            WinSetTransparent(currentTransparency, "ahk_exe vlc.exe")
-        
-        ; Check if Notepad is open and make it transparent
-        if WinExist("ahk_exe notepad.exe")
-            WinSetTransparent(currentTransparency, "ahk_exe notepad.exe")
+        ; Apply transparency to all apps in the map
+        for procName, transparency in transparencyLevels
+        {
+            if WinExist("ahk_exe " procName)
+                WinSetTransparent(transparency, "ahk_exe " procName)
+        }
     }
 }
 
-; Hotkey: Ctrl+Shift+Right Click to toggle transparency
+; Hotkey: Ctrl+Shift+Right Click to toggle transparency for current app
 ^+RButton::
 {
-    global isAutoCheckEnabled, currentTransparency
+    global isAutoCheckEnabled, transparencyLevels
     
-    ; Get the process name of the active window
     procName := WinGetProcessName("A")
     
-    ; Check if active window is one of our target apps
-    if (procName = "brave.exe" or procName = "vlc.exe" or procName = "notepad.exe") 
+    ; Add app to map if not already there
+    if (!transparencyLevels.Has(procName))
+        transparencyLevels[procName] := 220
+    
+    ; Toggle the auto-check on/off for this app
+    isAutoCheckEnabled := !isAutoCheckEnabled
+    
+    ; If disabling, make the window fully opaque
+    if (!isAutoCheckEnabled)
     {
-        ; Toggle the auto-check on/off
-        isAutoCheckEnabled := !isAutoCheckEnabled
-        
-        ; If disabling, make the window fully opaque
-        if (!isAutoCheckEnabled)
-        {
-            WinSetTransparent(255, "A")
-        }
+        WinSetTransparent(255, "A")
     }
 }
 
 ; Hotkey: Ctrl+Shift+Plus to increase transparency
 ^+NumpadAdd::
 {
-    global currentTransparency
+    global transparencyLevels
     
-    ; Increase transparency by 10 (max is 255 = fully opaque)
-    if (currentTransparency < 255)
+    procName := WinGetProcessName("A")
+    
+    ; Add app to map if not already there
+    if (!transparencyLevels.Has(procName))
+        transparencyLevels[procName] := 220
+    
+    ; Increase transparency by 10
+    if (transparencyLevels[procName] < 255)
     {
-        currentTransparency += 10
-        if (currentTransparency > 255)
-            currentTransparency := 255
+        transparencyLevels[procName] += 10
+        if (transparencyLevels[procName] > 255)
+            transparencyLevels[procName] := 255
         
-        ; Apply to active window
-        WinSetTransparent(currentTransparency, "A")
+        WinSetTransparent(transparencyLevels[procName], "A")
     }
 }
 
 ; Hotkey: Ctrl+Shift+Minus to decrease transparency
 ^+NumpadSub::
 {
-    global currentTransparency
+    global transparencyLevels
     
-    ; Decrease transparency by 10 (min is 0 = fully transparent)
-    if (currentTransparency > 0)
+    procName := WinGetProcessName("A")
+    
+    ; Add app to map if not already there
+    if (!transparencyLevels.Has(procName))
+        transparencyLevels[procName] := 220
+    
+    ; Decrease transparency by 10
+    if (transparencyLevels[procName] > 0)
     {
-        currentTransparency -= 10
-        if (currentTransparency < 0)
-            currentTransparency := 0
+        transparencyLevels[procName] -= 10
+        if (transparencyLevels[procName] < 0)
+            transparencyLevels[procName] := 0
         
-        ; Apply to active window
-        WinSetTransparent(currentTransparency, "A")
+        WinSetTransparent(transparencyLevels[procName], "A")
     }
+}
+
+alwaysOnTopWindows := Map()
+
+^+Space::
+{
+    global alwaysOnTopWindows
+ 
+    winHandle := WinExist("A")
+    
+    if (winHandle = 0)
+        return
+    
+    if (alwaysOnTopWindows.Has(winHandle))
+    {
+        WinSetAlwaysOnTop(0, winHandle)
+        alwaysOnTopWindows.Delete(winHandle)
+        ToolTip("Always-on-top: OFF")
+    }
+    else
+    {
+        WinSetAlwaysOnTop(1, winHandle)
+        alwaysOnTopWindows[winHandle] := true
+        ToolTip("Always-on-top: ON")
+    }   
+    
+    SetTimer(() => ToolTip(), 1500)
 }
