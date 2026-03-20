@@ -1,42 +1,5 @@
 ; ============================================================
-;  TransparencyManager.ahk  —  AHK v2 (Case‑Insensitive + Debug)
-; ============================================================
-
-#Requires AutoHotkey v2.0
-#SingleInstance Force
-SendMode "Input"
-SetWorkingDir A_ScriptDir
-
-CONFIG_FILE   := A_ScriptDir . "\TransparencySettings.ini"
-INI_SECTION   := "Transparency"
-PIN_SECTION   := "PinnedApps"
-STEP          := 10
-MIN_TRANS     := 20
-MAX_TRANS     := 255
-DEFAULT_TRANS := 220
-
-global transparencyLevels := Map()
-global disabledApps       := Map()
-global pinnedWindows      := Map()
-
-LoadSettings()
-ApplyTransparency()   ; immediate first run
-
-; Debug: show loaded apps
-debugMsg := "Loaded apps:`n"
-for proc, val in transparencyLevels
-    debugMsg .= proc . " = " . val . "`n"
-ToolTip(debugMsg)
-SetTimer () => ToolTip(), -5000
-
-SetTimer(ApplyTransparency, 300)
-SetTimer(EnforcePinnedWindows, 300)
-A_IconTip := "Transparency Manager"
-
-; ... (rest of the script exactly as in the case‑insensitive version I provided earlier) ...
-
-; ============================================================
-;  TransparencyManager.ahk  —  AHK v2 (Case‑Insensitive)
+;  TransparencyManager.ahk  —  AHK v2
 ;  Per-app window transparency + Always On Top
 ;  with persistent INI storage — GlazeWM compatible
 ;
@@ -71,7 +34,7 @@ global pinnedWindows      := Map()   ; winID → proc (always-on-top enforced)
 
 ; ─── Boot ────────────────────────────────────────────────────
 LoadSettings()
-ApplyTransparency()   ; Immediate first run (optional)
+ApplyTransparency()   ; immediate first run
 SetTimer(ApplyTransparency, 300)
 SetTimer(EnforcePinnedWindows, 300)
 A_IconTip := "Transparency Manager"
@@ -238,7 +201,7 @@ SetAppTransparency(proc, value)
     lcProc := StrLower(proc)
     transparencyLevels[lcProc] := value
     SaveSetting(lcProc, value)
-    wins := WinGetList("ahk_exe " . proc)   ; use original case for WinGetList (case-insensitive)
+    wins := WinGetList("ahk_exe " . proc)
     for , wid in wins
         SafeSetTrans(wid, value)
 }
@@ -295,7 +258,7 @@ SafeGetProc()
             ShowTip("⛔ Cannot apply to desktop / taskbar", 1800)
             return ""
         }
-        return StrLower(WinGetProcessName("A"))   ; return lowercase for map keys
+        return StrLower(WinGetProcessName("A"))
     }
     catch
         return ""
@@ -331,31 +294,27 @@ LoadSettings()
     {
         if FileExist(CONFIG_FILE)
         {
-            ; Try to read the file
             content := FileRead(CONFIG_FILE)
-            if (StrLen(content) > 10)  ; file has some content
+            if (StrLen(content) > 10)
                 break
         }
         Sleep 500
     }
 
-    ; If file still missing, create a default one and return
     if !FileExist(CONFIG_FILE)
     {
         FileAppend("[" . INI_SECTION . "]`n", CONFIG_FILE)
-        ToolTip("Created new settings file", 2000)
         return
     }
 
-    ; Remove possible BOM
-    if (SubStr(content, 1, 1) == Chr(0xFEFF))   ; UTF-16 BOM
+    ; Remove BOM if present
+    if (SubStr(content, 1, 1) == Chr(0xFEFF))
         content := SubStr(content, 2)
-    else if (SubStr(content, 1, 3) == Chr(0xEF) . Chr(0xBB) . Chr(0xBF))   ; UTF-8 BOM
+    else if (SubStr(content, 1, 3) == Chr(0xEF) . Chr(0xBB) . Chr(0xBF))
         content := SubStr(content, 4)
 
     lines := StrSplit(content, "`n", "`r")
     inSection := false
-    loadedCount := 0
 
     for index, line in lines
     {
@@ -393,20 +352,13 @@ LoadSettings()
             val := DEFAULT_TRANS
 
         transparencyLevels[StrLower(appName)] := val
-        loadedCount++
     }
-
-    ; Debug tooltip
-    debugMsg := "Loaded apps (" . loadedCount . "):`n"
-    for proc, val in transparencyLevels
-        debugMsg .= proc . " = " . val . "`n"
-    ToolTip(debugMsg)
-    SetTimer () => ToolTip(), -5000
 }
+
 SaveSetting(appName, value)
 {
     global CONFIG_FILE, INI_SECTION
-    IniWrite(value, CONFIG_FILE, INI_SECTION, appName)   ; appName is already lowercase
+    IniWrite(value, CONFIG_FILE, INI_SECTION, appName)
 }
 
 SavePinnedApps()
@@ -442,12 +394,10 @@ ShowAppGui()
         return
     EnsureEntry(proc)
 
-    lcProc := proc   ; already lowercase from SafeGetProc
-
+    lcProc := proc
     isOff    := disabledApps.Has(lcProc)
     curLevel := transparencyLevels[lcProc]
     curPct   := Round((curLevel / 255) * 100)
-
     wid      := WinGetID("A")
     isPinned := IsWinPinned(wid)
 
@@ -460,14 +410,12 @@ ShowAppGui()
     ; ── Header ───────────────────────────────────────────────
     g.SetFont("s8 c0xA0A0C0", "Segoe UI")
     g.AddText("w300", "ACTIVE APPLICATION")
-
     g.SetFont("s11 Bold c0xFFFFFF", "Segoe UI")
-    g.AddText("w300 y+4", proc)   ; show original case if desired; or use lcProc
+    g.AddText("w300 y+4", proc)
 
     ; Status badges
     g.SetFont("s9 c0x" . (isOff ? "FF6B6B" : "69FF94"), "Segoe UI")
     g.AddText("w144 y+4", isOff ? "⬤  Transparency OFF" : "⬤  Transparency ON")
-
     g.SetFont("s9 c0x" . (isPinned ? "FFD700" : "606080"), "Segoe UI")
     g.AddText("w144 yp Right", isPinned ? "📌 Pinned ON TOP" : "📌 Not Pinned")
 
@@ -478,13 +426,10 @@ ShowAppGui()
     ; ── Slider ───────────────────────────────────────────────
     g.SetFont("s9 c0xA0A0C0", "Segoe UI")
     g.AddText("w150 y+10", "OPACITY LEVEL")
-
     g.SetFont("s11 Bold c0xFFFFFF", "Segoe UI")
     lblPct := g.AddText("w140 yp Right", curPct . "%")
-
     g.SetFont("s9 c0xF0F0F0", "Segoe UI")
     slider := g.AddSlider("w300 y+6 Range20-255 TickInterval10 Page10 AltSubmit", curLevel)
-
     g.SetFont("s8 c0x606080", "Segoe UI")
     g.AddText("w150 y+4", "More Transparent")
     g.AddText("w140 yp Right", "Fully Opaque")
@@ -500,13 +445,11 @@ ShowAppGui()
     ; ── Quick presets ────────────────────────────────────────
     g.SetFont("s8 c0xA0A0C0", "Segoe UI")
     g.AddText("w300 y+14", "QUICK PRESETS")
-
     g.SetFont("s9 c0xFFFFFF", "Segoe UI")
     btn25  := g.AddButton("w66 y+6 Background0x2A2A3E", "25%")
     btn50  := g.AddButton("w66 x+6 yp Background0x2A2A3E", "50%")
     btn75  := g.AddButton("w66 x+6 yp Background0x2A2A3E", "75%")
     btn100 := g.AddButton("w66 x+6 yp Background0x2A2A3E", "100%")
-
     btn25.OnEvent("Click",  (*) => (slider.Value := 64,  UpdateLabel()))
     btn50.OnEvent("Click",  (*) => (slider.Value := 128, UpdateLabel()))
     btn75.OnEvent("Click",  (*) => (slider.Value := 191, UpdateLabel()))
@@ -519,7 +462,6 @@ ShowAppGui()
     ; ── Action buttons ───────────────────────────────────────
     g.SetFont("s10 Bold c0xFFFFFF", "Segoe UI")
     btnApply  := g.AddButton("w300 y+10 h34 Background0x0078D4", "✔  Apply Opacity")
-
     g.SetFont("s9 c0xFFFFFF", "Segoe UI")
     btnToggle := g.AddButton("w144 y+8 h30 Background0x" . (isOff ? "1A6B3A" : "6B1A1A"), isOff ? "✅  Enable Trans." : "❌  Disable Trans.")
     btnPin    := g.AddButton("w144 x+12 yp h30 Background0x" . (isPinned ? "5A4A00" : "1A3A2A"), isPinned ? "📌 Unpin Top" : "📌 Pin On Top")
@@ -528,8 +470,6 @@ ShowAppGui()
     ; ── Hotkey hint ──────────────────────────────────────────
     g.SetFont("s8 c0x505070", "Segoe UI")
     g.AddText("w300 y+14 Center", "Numpad +/−  adjust  |  *  reset  |  RClick  toggle  |  Space  pin")
-
-    ; ── GlazeWM notice ───────────────────────────────────────
     g.SetFont("s8 c0xFFD700", "Segoe UI")
     g.AddText("w300 y+6 Center", "⚡ GlazeWM mode: pin is actively re-enforced every 300ms")
 
@@ -545,7 +485,7 @@ ShowAppGui()
         newVal := slider.Value
         if (disabledApps.Has(lcProc))
             disabledApps.Delete(lcProc)
-        SetAppTransparency(proc, newVal)   ; pass original case; function will lowercase
+        SetAppTransparency(proc, newVal)
         ShowTip("✅ Applied: " . proc . "  →  " . Round((newVal / 255) * 100) . "%", 1400)
         g.Destroy()
     }
@@ -582,3 +522,5 @@ ShowAppGui()
 
     g.Show("AutoSize Center")
 }
+
+
